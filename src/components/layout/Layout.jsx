@@ -29,7 +29,7 @@ export default function Layout({ children }) {
               <Cpu size={15} className="text-accent-blue" />
             </div>
             <span className="font-display font-bold text-sm tracking-wide text-text-primary">
-              Research<span className="text-accent-blue">2</span>Video
+              Paper<span className="text-accent-blue">2</span>Video
             </span>
           </div>
         </div>

@@ -14,7 +14,7 @@ export const getScript   = (id)     => api.get(`/papers/${id}/script`)
 export const getLineage  = (id)     => api.get(`/papers/${id}/lineage`)
 export const getWebCtx   = (id)     => api.get(`/papers/${id}/web-context`)
 export const ingestURL   = (body)   => api.post('/papers/ingest/url', body)
-export const ingestFile  = (form)   => api.post('/papers/ingest/file', form, {
+export const ingestFile = (form) => api.post('/papers/ingest/file', form, {
   headers: { 'Content-Type': 'multipart/form-data' }
 })
 

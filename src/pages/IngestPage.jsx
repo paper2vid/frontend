@@ -18,6 +18,7 @@ export default function IngestPage() {
   const [mode,    setMode]    = useState('arxiv')  // arxiv | url | file
   const [input,   setInput]   = useState('')
   const [loading, setLoading] = useState(false)
+  const [fileQueue, setFileQueue] = useState([])
   const fileRef = useRef(null)
 
   const { addJob, activeJobs } = useAppStore()
@@ -39,20 +40,32 @@ export default function IngestPage() {
     }
   }
 
-  const submitFile = async (file) => {
+  const submitFiles = async () => {
+  if (!fileQueue.length) return
+  setLoading(true)
+  try {
     const form = new FormData()
-    form.append('file', file)
-    setLoading(true)
-    try {
-      const data = await ingestFile(form)
-      addJob(data.task_id, { source: file.name, status: 'queued' })
-      toast.success('File queued for processing!')
-    } catch (e) {
-      toast.error(String(e))
-    } finally {
-      setLoading(false)
-    }
+    fileQueue.forEach(({ file }) => form.append('files', file))
+
+    const data = await ingestFile(form)
+    const results = data.results ?? [data]  // handle both old single and new multi response
+
+    results.forEach(r => {
+      if (r.task_id) addJob(r.task_id, { source: r.filename, status: 'queued' })
+    })
+
+    const errors = results.filter(r => r.status === 'error')
+    const queued = results.filter(r => r.status === 'queued')
+    if (queued.length) toast.success(`${queued.length} paper(s) queued!`)
+    if (errors.length) toast.error(`Failed: ${errors.map(e => e.filename).join(', ')}`)
+
+    setFileQueue([])
+  } catch (e) {
+    toast.error(String(e))
+  } finally {
+    setLoading(false)
   }
+}
 
   return (
     <div className="p-8 max-w-2xl mx-auto space-y-8">
@@ -85,63 +98,69 @@ export default function IngestPage() {
 
       {/* Input area */}
       <div className="space-y-3">
-        {mode === 'file' ? (
-          <div
-            onClick={() => fileRef.current?.click()}
-            className="card border-dashed border-bg-border hover:border-accent-blue/40 p-12 flex flex-col items-center gap-4 cursor-pointer transition-colors hover:bg-bg-hover"
-          >
-            <div className="w-12 h-12 rounded-xl bg-accent-blue/10 flex items-center justify-center">
-              <Upload size={20} className="text-accent-blue" />
-            </div>
-            <div className="text-center">
-              <p className="font-display font-semibold text-text-primary">Drop or click to upload</p>
-              <p className="text-text-muted text-sm mt-1">PDF, HTML, or LaTeX (.tex)</p>
-            </div>
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".pdf,.html,.htm,.tex"
-              className="hidden"
-              onChange={e => e.target.files?.[0] && submitFile(e.target.files[0])}
-            />
-          </div>
-        ) : (
-          <>
-            <div className="flex gap-2">
+        {mode === 'file' && (
+          <div className="space-y-3">
+            <div
+              onClick={() => fileRef.current?.click()}
+              onDragOver={e => e.preventDefault()}
+              onDrop={e => {
+                e.preventDefault()
+                const dropped = Array.from(e.dataTransfer.files)
+                setFileQueue(prev => [...prev, ...dropped.map(f => ({ file: f }))])
+              }}
+              className="card border-dashed border-bg-border hover:border-accent-blue/40 p-12 flex flex-col items-center gap-4 cursor-pointer transition-colors hover:bg-bg-hover"
+            >
+              <div className="w-12 h-12 rounded-xl bg-accent-blue/10 flex items-center justify-center">
+                <Upload size={20} className="text-accent-blue" />
+              </div>
+              <div className="text-center">
+                <p className="font-display font-semibold text-text-primary">Drop files or click to browse</p>
+                <p className="text-text-muted text-sm mt-1">PDF, HTML, or LaTeX — select multiple</p>
+              </div>
               <input
-                type="text"
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && submit()}
-                placeholder={mode === 'arxiv' ? 'e.g. 1706.03762' : 'https://arxiv.org/abs/...'}
-                className="input"
+                ref={fileRef}
+                type="file"
+                accept=".pdf,.html,.htm,.tex"
+                multiple
+                className="hidden"
+                onChange={e => {
+                  const picked = Array.from(e.target.files || [])
+                  setFileQueue(prev => [...prev, ...picked.map(f => ({ file: f }))])
+                  e.target.value = ''  // reset so same file can be re-picked
+                }}
               />
-              <button
-                onClick={submit}
-                disabled={loading}
-                className="btn-primary shrink-0 flex items-center gap-2"
-              >
-                {loading ? <Loader2 size={14} className="animate-spin" /> : null}
-                {loading ? 'Queuing…' : 'Process'}
-              </button>
             </div>
 
-            {/* Examples */}
-            {mode === 'arxiv' && (
-              <div className="flex flex-wrap gap-2">
-                <span className="text-xs text-text-dim font-mono mt-0.5">examples:</span>
-                {EXAMPLES.map(ex => (
-                  <button
-                    key={ex.value}
-                    onClick={() => setInput(ex.value)}
-                    className="text-xs text-accent-blue hover:underline font-mono"
-                  >
-                    {ex.value}
-                  </button>
+            {/* Queue list */}
+            {fileQueue.length > 0 && (
+              <div className="space-y-2">
+                {fileQueue.map(({ file }, i) => (
+                  <div key={i} className="flex items-center justify-between px-4 py-2.5 rounded-lg bg-bg-dark border border-bg-border">
+                    <div className="flex items-center gap-2.5">
+                      <FileText size={14} className="text-accent-blue shrink-0" />
+                      <span className="text-sm text-text-primary truncate max-w-xs">{file.name}</span>
+                      <span className="text-xs text-text-muted">({(file.size / 1024).toFixed(0)} KB)</span>
+                    </div>
+                    <button
+                      onClick={() => setFileQueue(prev => prev.filter((_, j) => j !== i))}
+                      className="text-text-muted hover:text-red-400 text-xs ml-3"
+                    >✕</button>
+                  </div>
                 ))}
+
+                <button
+                  onClick={submitFiles}
+                  disabled={loading}
+                  className="btn-primary w-full flex items-center justify-center gap-2"
+                >
+                  {loading
+                    ? <><Loader2 size={14} className="animate-spin" /> Uploading...</>
+                    : `Queue ${fileQueue.length} paper${fileQueue.length > 1 ? 's' : ''}`
+                  }
+                </button>
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
 

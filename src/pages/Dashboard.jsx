@@ -42,7 +42,7 @@ export default function Dashboard() {
         <div className="absolute inset-0 bg-grid-pattern bg-grid opacity-100 pointer-events-none" />
         <div className="relative">
           <h1 className="font-display font-bold text-3xl text-text-primary">
-            Research<span className="text-accent-blue">2</span>Video
+            Paper<span className="text-accent-blue">2</span>Video
           </h1>
           <p className="text-text-secondary mt-2 max-w-lg font-body">
             Convert academic papers into narrated YouTube videos with citation graphs,
