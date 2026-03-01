@@ -97,8 +97,45 @@ export default function IngestPage() {
       </div>
 
       {/* Input area */}
+      {/* Input area */}
       <div className="space-y-3">
-        {mode === 'file' && (
+        {mode !== 'file' ? (
+          <>
+            <div className="flex gap-2">
+              <input
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && submit()}
+                placeholder={mode === 'arxiv' ? 'e.g. 1706.03762' : 'https://arxiv.org/abs/...'}
+                className="input flex-1"
+              />
+              <button
+                onClick={submit}
+                disabled={loading}
+                className="btn-primary flex items-center gap-2 px-5"
+              >
+                {loading
+                  ? <><Loader2 size={14} className="animate-spin" /> Queuing...</>
+                  : 'Queue'
+                }
+              </button>
+            </div>
+
+            {mode === 'arxiv' && (
+              <div className="flex flex-wrap gap-2">
+                {EXAMPLES.map(ex => (
+                  <button
+                    key={ex.value}
+                    onClick={() => setInput(ex.value)}
+                    className="px-3 py-1 rounded-lg text-xs font-mono bg-bg-dark border border-bg-border text-text-muted hover:text-text-primary hover:border-accent-blue/40 transition-colors"
+                  >
+                    {ex.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
           <div className="space-y-3">
             <div
               onClick={() => fileRef.current?.click()}
@@ -126,12 +163,11 @@ export default function IngestPage() {
                 onChange={e => {
                   const picked = Array.from(e.target.files || [])
                   setFileQueue(prev => [...prev, ...picked.map(f => ({ file: f }))])
-                  e.target.value = ''  // reset so same file can be re-picked
+                  e.target.value = ''
                 }}
               />
             </div>
 
-            {/* Queue list */}
             {fileQueue.length > 0 && (
               <div className="space-y-2">
                 {fileQueue.map(({ file }, i) => (
