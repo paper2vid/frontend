@@ -2,16 +2,18 @@ import { NavLink } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Upload, Film, Network,
-  Activity, Cpu, ChevronRight
+  Activity, Cpu, ChevronRight, List
 } from 'lucide-react'
 import { useAppStore } from '../../store'
 import ActiveJobsBadge from '../pipeline/ActiveJobsBadge'
 
 const NAV = [
-  { to: '/',       icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/ingest', icon: Upload,          label: 'Add Paper'  },
-  { to: '/videos', icon: Film,            label: 'Videos'     },
-  { to: '/graph',  icon: Network,         label: 'Graph'      },
+  { to: '/',       icon: LayoutDashboard, label: 'Dashboard'          },
+  { to: '/papers', icon: List,            label: 'View Papers'        },
+  { to: '/ingest', icon: Upload,          label: 'Add Paper'          },
+  { to: '/videos', icon: Film,            label: 'Videos'             },
+  { to: '/graph',  icon: Network,         label: 'Graph'              },
+  { to: '/fields', icon: Network,         label: 'Field Intelligence' },
 ]
 
 export default function Layout({ children }) {

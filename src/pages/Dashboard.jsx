@@ -72,7 +72,7 @@ export default function Dashboard() {
       <div>
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-display font-semibold text-text-primary">Recent Papers</h2>
-          <Link to="/" className="flex items-center gap-1 text-xs text-accent-blue hover:underline">
+          <Link to="/papers" className="flex items-center gap-1 text-xs text-accent-blue hover:underline">
             View all <ArrowRight size={11} />
           </Link>
         </div>
