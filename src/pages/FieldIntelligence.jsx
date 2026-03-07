@@ -1,18 +1,29 @@
 /**
  * src/pages/FieldIntelligence.jsx
  *
- * Search a field/topic → triggers arXiv fetch + Claude synthesis
- * Shows: History timeline, Evolution phases, SOTA, Next Steps, Key Papers
+ * Two tabs:
+ *  1. arXiv Live Search — hit arXiv API in real-time, show results with
+ *     checkboxes, queue selected papers for parsing
+ *  2. Field Analysis — synthesize a full field intelligence report
  */
 
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
-import { Search, RefreshCw, BookOpen, TrendingUp, Zap, Compass, Star, Loader2, AlertCircle } from 'lucide-react'
+import {
+  Search, RefreshCw, BookOpen, TrendingUp, Zap, Compass, Star,
+  Loader2, AlertCircle, Plus, CheckSquare, Square, ChevronDown,
+  ChevronUp, ExternalLink, Filter, ArrowRight, ListChecks,
+} from 'lucide-react'
 import axios from 'axios'
+import toast from 'react-hot-toast'
+import { useAppStore } from '../store'
 
 const api = axios.create({ baseURL: '/api' })
 
 // ── API helpers ──────────────────────────────────────────────────────────────
+const searchArxiv = (q, category, maxResults, start) =>
+  api.get('/arxiv/search', { params: { q, category: category || undefined, max_results: maxResults, start } }).then(r => r.data)
+
 const startAnalysis = (topic, category, maxPapers) =>
   api.post('/fields/analyse', { topic, category, max_papers: maxPapers }).then(r => r.data)
 
@@ -25,8 +36,339 @@ const getFieldAnalysis = (category) =>
 const getJob = (taskId) =>
   api.get(`/jobs/${taskId}`).then(r => r.data)
 
+const queuePaper = (arxivId) =>
+  api.post('/papers/ingest/url', { url: arxivId, source_type: 'arxiv_id' }).then(r => r.data)
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+
+// ── ArXiv Search Tab ──────────────────────────────────────────────────────────
+
+function ArxivSearchTab() {
+  const [query, setQuery]           = useState('')
+  const [category, setCategory]     = useState('')
+  const [maxResults, setMaxResults] = useState(50)
+  const [results, setResults]       = useState([])
+  const [total, setTotal]           = useState(0)
+  const [loading, setLoading]       = useState(false)
+  const [error, setError]           = useState(null)
+  const [selected, setSelected]     = useState(new Set())
+  const [expanded, setExpanded]     = useState(new Set())
+  const [queuing, setQueuing]       = useState(false)
+  const [page, setPage]             = useState(0)
+  const { addJob } = useAppStore()
+  const debounceRef = useRef(null)
+
+  const doSearch = useCallback(async (q, cat, max, start = 0) => {
+    if (!q.trim()) return
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await searchArxiv(q, cat, max, start)
+      if (start === 0) {
+        setResults(data.papers || [])
+      } else {
+        setResults(prev => [...prev, ...(data.papers || [])])
+      }
+      setTotal(data.total || 0)
+    } catch (e) {
+      setError(e.message || 'Search failed')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // Trigger search on input change (debounced)
+  useEffect(() => {
+    if (!query.trim()) { setResults([]); setTotal(0); return }
+    clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      setPage(0)
+      setSelected(new Set())
+      doSearch(query, category, maxResults, 0)
+    }, 600)
+    return () => clearTimeout(debounceRef.current)
+  }, [query, category, maxResults])
+
+  const loadMore = () => {
+    const nextStart = results.length
+    setPage(p => p + 1)
+    doSearch(query, category, 25, nextStart)
+  }
+
+  const toggleSelect = (arxivId) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.has(arxivId) ? next.delete(arxivId) : next.add(arxivId)
+      return next
+    })
+  }
+
+  const toggleAll = () => {
+    if (selected.size === results.length) {
+      setSelected(new Set())
+    } else {
+      setSelected(new Set(results.map(p => p.arxiv_id)))
+    }
+  }
+
+  const toggleExpand = (arxivId) => {
+    setExpanded(prev => {
+      const next = new Set(prev)
+      next.has(arxivId) ? next.delete(arxivId) : next.add(arxivId)
+      return next
+    })
+  }
+
+  const queueSelected = async () => {
+    if (!selected.size) return
+    setQueuing(true)
+    let success = 0, fail = 0
+    for (const arxivId of selected) {
+      try {
+        const data = await queuePaper(arxivId)
+        addJob(data.task_id, { source: arxivId, status: 'queued' })
+        success++
+      } catch (e) {
+        fail++
+      }
+    }
+    setQueuing(false)
+    if (success) toast.success(`${success} paper${success > 1 ? 's' : ''} queued for processing!`)
+    if (fail) toast.error(`${fail} failed to queue`)
+    setSelected(new Set())
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Search bar */}
+      <div className="card p-4 space-y-3">
+        <div className="flex gap-3">
+          <div className="relative flex-1">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+            <input
+              className="w-full pl-9 pr-4 py-2.5 bg-bg-deep border border-border-subtle rounded-lg
+                         text-sm text-text-primary placeholder-text-muted focus:outline-none
+                         focus:border-accent-blue transition-colors"
+              placeholder="Search arXiv — results appear as you type…"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+            />
+          </div>
+          <input
+            className="w-28 px-3 py-2.5 bg-bg-deep border border-border-subtle rounded-lg
+                       text-sm text-text-primary placeholder-text-muted focus:outline-none
+                       focus:border-accent-blue transition-colors"
+            placeholder="cs.CV"
+            value={category}
+            onChange={e => setCategory(e.target.value)}
+            title="arXiv category (optional)"
+          />
+          <select
+            className="px-3 py-2.5 bg-bg-deep border border-border-subtle rounded-lg
+                       text-sm text-text-primary focus:outline-none focus:border-accent-blue"
+            value={maxResults}
+            onChange={e => setMaxResults(Number(e.target.value))}
+          >
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+            <option value={200}>200</option>
+          </select>
+        </div>
+
+        {/* Floating action bar when papers selected */}
+        {selected.size > 0 && (
+          <div className="flex items-center justify-between p-3 rounded-lg bg-accent-blue/10 border border-accent-blue/30">
+            <div className="flex items-center gap-2">
+              <ListChecks size={15} className="text-accent-blue" />
+              <span className="text-sm text-accent-blue font-medium">
+                {selected.size} paper{selected.size > 1 ? 's' : ''} selected
+              </span>
+            </div>
+            <button
+              onClick={queueSelected}
+              disabled={queuing}
+              className="btn-primary flex items-center gap-2 py-1.5 px-4 text-sm"
+            >
+              {queuing
+                ? <><Loader2 size={13} className="animate-spin" /> Queuing…</>
+                : <><Plus size={13} /> Add to Parse Queue</>
+              }
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Status row */}
+      {(results.length > 0 || loading) && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {loading && <Loader2 size={14} className="animate-spin text-accent-blue" />}
+            {results.length > 0 && !loading && (
+              <span className="text-sm text-text-muted">
+                Showing <span className="text-text-primary font-medium">{results.length}</span>
+                {total > results.length && <span> of ~{total.toLocaleString()}</span>} results
+              </span>
+            )}
+          </div>
+          {results.length > 0 && (
+            <button
+              onClick={toggleAll}
+              className="flex items-center gap-1.5 text-xs text-text-muted hover:text-accent-blue transition-colors"
+            >
+              {selected.size === results.length
+                ? <><CheckSquare size={13} /> Deselect all</>
+                : <><Square size={13} /> Select all</>
+              }
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Error */}
+      {error && (
+        <div className="flex items-center gap-2 text-accent-red text-sm p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+          <AlertCircle size={14} />
+          {error}
+        </div>
+      )}
+
+      {/* Results */}
+      {results.length > 0 && (
+        <div className="space-y-2">
+          {results.map(paper => {
+            const isSelected = selected.has(paper.arxiv_id)
+            const isExpanded = expanded.has(paper.arxiv_id)
+            return (
+              <div
+                key={paper.arxiv_id}
+                className={`card transition-all duration-200 ${
+                  isSelected
+                    ? 'border-accent-blue/50 bg-accent-blue/5'
+                    : 'hover:border-border-active'
+                }`}
+              >
+                <div className="p-3 flex items-start gap-3">
+                  {/* Checkbox */}
+                  <button
+                    onClick={() => toggleSelect(paper.arxiv_id)}
+                    className="mt-0.5 shrink-0 text-text-muted hover:text-accent-blue transition-colors"
+                  >
+                    {isSelected
+                      ? <CheckSquare size={16} className="text-accent-blue" />
+                      : <Square size={16} />
+                    }
+                  </button>
+
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="text-sm font-medium text-text-primary leading-snug">
+                        {paper.title}
+                      </h3>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {paper.year && (
+                          <span className="text-xs font-mono text-accent-teal bg-teal-500/10 px-1.5 py-0.5 rounded">
+                            {paper.year}
+                          </span>
+                        )}
+                        {paper.category && (
+                          <span className="text-xs font-mono text-text-muted bg-bg-deep px-1.5 py-0.5 rounded border border-border-subtle">
+                            {paper.category}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Authors */}
+                    {paper.authors?.length > 0 && (
+                      <p className="text-xs text-text-muted mt-0.5">
+                        {paper.authors.slice(0, 3).join(', ')}
+                        {paper.authors.length > 3 && ` +${paper.authors.length - 3} more`}
+                      </p>
+                    )}
+
+                    {/* Abstract (expandable) */}
+                    {paper.abstract && (
+                      <div className="mt-2">
+                        {isExpanded ? (
+                          <p className="text-xs text-text-secondary leading-relaxed">
+                            {paper.abstract}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-text-muted line-clamp-2">
+                            {paper.abstract}
+                          </p>
+                        )}
+                        <button
+                          onClick={() => toggleExpand(paper.arxiv_id)}
+                          className="text-xs text-accent-blue hover:underline mt-1 flex items-center gap-1"
+                        >
+                          {isExpanded
+                            ? <><ChevronUp size={11} /> Show less</>
+                            : <><ChevronDown size={11} /> Read abstract</>
+                          }
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Link */}
+                  {paper.abs_url && (
+                    <a
+                      href={paper.abs_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 text-text-muted hover:text-accent-blue transition-colors mt-0.5"
+                      title="Open on arXiv"
+                    >
+                      <ExternalLink size={13} />
+                    </a>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+
+          {/* Load more */}
+          {results.length < total && (
+            <button
+              onClick={loadMore}
+              disabled={loading}
+              className="w-full py-2.5 text-sm text-text-muted hover:text-accent-blue border border-border-subtle rounded-lg hover:border-accent-blue/40 transition-all flex items-center justify-center gap-2"
+            >
+              {loading
+                ? <><Loader2 size={13} className="animate-spin" /> Loading…</>
+                : <>Load more ({total - results.length} remaining)</>
+              }
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!loading && !error && results.length === 0 && query && (
+        <div className="text-center py-12 text-text-muted">
+          <Search size={32} className="mx-auto mb-3 opacity-30" />
+          <p className="text-sm">No results found for "{query}"</p>
+        </div>
+      )}
+
+      {!query && (
+        <div className="text-center py-16 text-text-muted">
+          <Search size={40} className="mx-auto mb-4 opacity-20" />
+          <p className="text-sm font-medium text-text-secondary mb-2">Search arXiv in real-time</p>
+          <p className="text-xs max-w-sm mx-auto">
+            Type a topic or keyword — results appear instantly from arXiv.
+            Check the papers you want, then click "Add to Parse Queue".
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+
+// ── Field Analysis Tab ────────────────────────────────────────────────────────
 
 function SectionCard({ icon: Icon, title, color, children }) {
   return (
@@ -89,16 +431,6 @@ function EvolutionPhases({ evolution }) {
               </div>
             </div>
           )}
-          {phase.drivers?.length > 0 && (
-            <div className="mt-2">
-              <p className="text-xs text-text-muted mb-1.5 uppercase tracking-wide">What drove change</p>
-              <ul className="list-disc list-inside space-y-0.5">
-                {phase.drivers.map((d, j) => (
-                  <li key={j} className="text-xs text-text-secondary">{d}</li>
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
       ))}
     </div>
@@ -106,11 +438,10 @@ function EvolutionPhases({ evolution }) {
 }
 
 function SOTAPanel({ sota }) {
-  if (!sota || !sota.summary) return <p className="text-text-muted text-sm">No SOTA data available.</p>
+  if (!sota?.summary) return <p className="text-text-muted text-sm">No SOTA data available.</p>
   return (
     <div className="space-y-4">
       <p className="text-sm text-text-secondary">{sota.summary}</p>
-
       {sota.leading_approaches?.length > 0 && (
         <div>
           <p className="text-xs text-text-muted mb-2 uppercase tracking-wide">Leading Approaches</p>
@@ -121,45 +452,31 @@ function SOTAPanel({ sota }) {
           </div>
         </div>
       )}
-
       {sota.benchmarks?.length > 0 && (
         <div>
-          <p className="text-xs text-text-muted mb-2 uppercase tracking-wide">Key Benchmarks</p>
+          <p className="text-xs text-text-muted mb-2 uppercase tracking-wide">Benchmarks</p>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-border-subtle">
-                  <th className="text-left py-1.5 pr-4 text-text-muted font-normal">Benchmark</th>
-                  <th className="text-left py-1.5 pr-4 text-text-muted font-normal">Metric</th>
-                  <th className="text-left py-1.5 pr-4 text-text-muted font-normal">Best</th>
-                  <th className="text-left py-1.5 text-text-muted font-normal">Paper</th>
+                  <th className="text-left pb-2 text-text-muted font-medium">Benchmark</th>
+                  <th className="text-left pb-2 text-text-muted font-medium">Metric</th>
+                  <th className="text-left pb-2 text-text-muted font-medium">Best</th>
+                  <th className="text-left pb-2 text-text-muted font-medium">Paper</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-border-subtle">
                 {sota.benchmarks.map((b, i) => (
-                  <tr key={i} className="border-b border-border-subtle/50">
-                    <td className="py-1.5 pr-4 text-text-primary font-medium">{b.name}</td>
-                    <td className="py-1.5 pr-4 text-text-secondary">{b.metric}</td>
-                    <td className="py-1.5 pr-4 text-accent-teal font-mono">{b.current_best}</td>
-                    <td className="py-1.5 text-text-muted">{(b.achieved_by || '').slice(0, 30)}{(b.achieved_by || '').length > 30 ? '…' : ''}</td>
+                  <tr key={i}>
+                    <td className="py-2 text-text-primary">{b.name}</td>
+                    <td className="py-2 text-text-muted">{b.metric}</td>
+                    <td className="py-2 font-mono text-accent-teal">{b.best_value || b.value}</td>
+                    <td className="py-2 text-text-muted truncate max-w-[200px]">{b.paper_title || b.paper || '…'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </div>
-      )}
-
-      {sota.remaining_challenges?.length > 0 && (
-        <div>
-          <p className="text-xs text-text-muted mb-2 uppercase tracking-wide">Remaining Challenges</p>
-          <ul className="space-y-1">
-            {sota.remaining_challenges.map((c, i) => (
-              <li key={i} className="text-sm text-text-secondary flex gap-2">
-                <span className="text-accent-red mt-0.5">•</span>{c}
-              </li>
-            ))}
-          </ul>
         </div>
       )}
     </div>
@@ -186,18 +503,6 @@ function NextStepsPanel({ nextSteps }) {
               </ul>
             </div>
           )}
-          {step.promising_directions?.length > 0 && (
-            <div>
-              <p className="text-xs text-text-muted mb-1 uppercase tracking-wide">Promising Directions</p>
-              <ul className="space-y-0.5">
-                {step.promising_directions.map((d, j) => (
-                  <li key={j} className="text-xs text-text-secondary flex gap-2">
-                    <span className="text-accent-teal">→</span>{d}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
       ))}
     </div>
@@ -215,13 +520,13 @@ function KeyPapersPanel({ papers }) {
             <div className="flex items-start gap-2 flex-wrap">
               <span className="text-sm font-medium text-text-primary">
                 {p.arxiv_id
-                  ? <a href={`https://arxiv.org/abs/${p.arxiv_id}`} target="_blank" rel="noreferrer"
+                  ? <a href={`https://arxiv.org/abs/${p.arxiv_id}`} target="_blank" rel="noopener noreferrer"
                        className="hover:text-accent-blue transition-colors">{p.title}</a>
                   : p.title}
               </span>
-              <span className="text-xs text-text-muted font-mono shrink-0">{p.year}</span>
+              {p.year && <span className="text-xs font-mono text-accent-teal">{p.year}</span>}
             </div>
-            <p className="text-xs text-text-muted mt-0.5">{p.why_important}</p>
+            {p.why_important && <p className="text-xs text-text-muted mt-0.5">{p.why_important}</p>}
           </div>
         </div>
       ))}
@@ -229,104 +534,66 @@ function KeyPapersPanel({ papers }) {
   )
 }
 
-function ProgressBar({ label, progress }) {
-  return (
-    <div className="space-y-2">
-      <div className="flex justify-between text-xs text-text-muted">
-        <span>{label}</span>
-        <span>{progress}%</span>
-      </div>
-      <div className="h-1.5 bg-bg-deep rounded-full overflow-hidden">
-        <div
-          className="h-full bg-accent-blue rounded-full transition-all duration-500"
-          style={{ width: `${progress}%` }}
-        />
-      </div>
-    </div>
-  )
-}
+function FieldAnalysisTab() {
+  const [topic, setTopic]         = useState('')
+  const [category, setCategory]   = useState('')
+  const [maxPapers, setMaxPapers] = useState(300)
+  const [taskId, setTaskId]       = useState(null)
+  const [analysisKey, setAnalysisKey] = useState(null) // category slug used to fetch
+  const [taskProgress, setTaskProgress] = useState(null)
+  const [activeTab, setActiveTab] = useState('history')
+  const qc = useQueryClient()
 
-
-// ── Main page ─────────────────────────────────────────────────────────────────
-
-export default function FieldIntelligence() {
-  const [topic, setTopic]           = useState('')
-  const [category, setCategory]     = useState('')
-  const [maxPapers, setMaxPapers]   = useState(500)
-  const [activeCategory, setActive] = useState(null)   // currently displayed
-  const [taskId, setTaskId]         = useState(null)
-  const [taskProgress, setProgress] = useState(null)
-
-  // Poll task status
+  // Poll job progress
   const { data: jobData } = useQuery(
-    ['field-job', taskId],
+    ['job', taskId],
     () => getJob(taskId),
     {
       enabled: !!taskId,
-      refetchInterval: (data) => {
-        if (!data) return 3000
-        const done = data?.status === 'SUCCESS' || data?.status === 'FAILURE'
-        return done ? false : 3000
-      },
-      onSuccess: (data) => {
-        if (data?.meta) setProgress(data.meta)
-        if (data?.status === 'SUCCESS') {
-          setTaskId(null)
-          setProgress(null)
+      refetchInterval: d => d?.status === 'SUCCESS' || d?.status === 'FAILURE' ? false : 2000,
+      onSuccess: d => {
+        setTaskProgress(d?.result)
+        if (d?.status === 'SUCCESS' && analysisKey) {
+          qc.invalidateQueries(['field-analysis', analysisKey])
         }
       },
     }
   )
 
-  // Fetch field analysis
-  const { data: analysis, isLoading: analysisLoading, refetch } = useQuery(
-    ['field-analysis', activeCategory],
-    () => getFieldAnalysis(activeCategory),
-    {
-      enabled: !!activeCategory,
-      retry: false,
-      refetchInterval: (data) => {
-        // If still analysing, poll every 10s
-        if (!data) return false
-        if (data?.status === 'analysing' || data?.status === 'pending') return 10000
-        return false
-      },
-    }
+  // Fetch analysis result
+  const { data: analysis, isLoading: analysisLoading } = useQuery(
+    ['field-analysis', analysisKey],
+    () => getFieldAnalysis(analysisKey),
+    { enabled: !!analysisKey, retry: false }
   )
 
-  const startMutation = useMutation(
-    ({ topic, category, maxPapers }) => startAnalysis(topic, category, maxPapers),
-    {
-      onSuccess: (data) => {
-        setTaskId(data.task_id)
-        setActive(data.category || topic.toLowerCase())
-      },
-    }
-  )
-
-  const handleSearch = () => {
+  const handleSearch = async () => {
     if (!topic.trim()) return
-    const cat = category.trim() || topic.toLowerCase().replace(/\s+/g, '_')
-    startMutation.mutate({ topic: topic.trim(), category: category.trim(), maxPapers })
-    setActive(cat)
+    const slug = (category || topic).trim()
+    try {
+      const data = await startAnalysis(topic, category, maxPapers)
+      setTaskId(data.task_id)
+      setAnalysisKey(slug)
+    } catch (e) {
+      toast.error('Failed to start analysis')
+    }
   }
 
-  const isRunning = !!taskId || jobData?.status === 'STARTED'
+  const isRunning = taskId && !['SUCCESS', 'FAILURE'].includes(jobData?.status)
   const stage = taskProgress?.stage || 'idle'
   const progress = taskProgress?.progress || 0
   const progressLabel = taskProgress?.label || 'Processing…'
 
-  return (
-    <div className="max-w-5xl mx-auto space-y-6 p-6">
-      {/* Header */}
-      <div>
-        <h1 className="font-display font-bold text-2xl text-text-primary">Field Intelligence</h1>
-        <p className="text-text-secondary text-sm mt-1">
-          Search any research topic → get history, evolution, SOTA, and next steps synthesised from arXiv papers.
-        </p>
-      </div>
+  const TABS = [
+    { key: 'history',   label: 'History',   icon: BookOpen   },
+    { key: 'evolution', label: 'Evolution',  icon: TrendingUp },
+    { key: 'sota',      label: 'SOTA',       icon: Zap        },
+    { key: 'next',      label: 'Next Steps', icon: Compass    },
+    { key: 'papers',    label: 'Key Papers', icon: Star       },
+  ]
 
-      {/* Search bar */}
+  return (
+    <div className="space-y-6">
       <div className="card p-4 space-y-3">
         <div className="flex gap-3">
           <div className="relative flex-1">
@@ -348,20 +615,16 @@ export default function FieldIntelligence() {
             placeholder="cs.CV"
             value={category}
             onChange={e => setCategory(e.target.value)}
-            title="arXiv category (optional)"
           />
           <select
             className="px-3 py-2 bg-bg-deep border border-border-subtle rounded-lg
                        text-sm text-text-primary focus:outline-none focus:border-accent-blue"
             value={maxPapers}
             onChange={e => setMaxPapers(Number(e.target.value))}
-            title="Max papers to fetch"
           >
-            <option value={100}>100 papers</option>
-            <option value={300}>300 papers</option>
-            <option value={500}>500 papers</option>
-            <option value={1000}>1000 papers</option>
-            <option value={1500}>1500 papers</option>
+            {[100, 300, 500, 1000, 1500].map(n => (
+              <option key={n} value={n}>{n} papers</option>
+            ))}
           </select>
           <button
             onClick={handleSearch}
@@ -369,103 +632,111 @@ export default function FieldIntelligence() {
             className="btn-primary flex items-center gap-2 px-4 py-2 disabled:opacity-50"
           >
             {isRunning
-              ? <><Loader2 size={14} className="animate-spin" /> Running</>
-              : <><Search size={14} /> Analyse</>}
+              ? <><Loader2 size={14} className="animate-spin" /> Analysing…</>
+              : <><Zap size={14} /> Analyse Field</>
+            }
           </button>
         </div>
 
-        {/* Progress */}
         {isRunning && (
-          <ProgressBar label={progressLabel} progress={progress} />
-        )}
-
-        {startMutation.isError && (
-          <div className="flex items-center gap-2 text-accent-red text-sm">
-            <AlertCircle size={14} />
-            <span>Failed to start analysis. Is the Celery worker running?</span>
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-xs text-text-muted font-mono">
+              <span>{progressLabel}</span>
+              <span>{progress}%</span>
+            </div>
+            <div className="h-1.5 bg-bg-deep rounded-full overflow-hidden">
+              <div
+                className="h-full bg-accent-blue rounded-full transition-all duration-700"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
           </div>
         )}
       </div>
 
-      {/* Results */}
-      {activeCategory && !isRunning && (
+      {analysisLoading && (
+        <div className="flex items-center justify-center gap-2 py-12 text-text-muted">
+          <Loader2 size={20} className="animate-spin text-accent-blue" />
+          <span className="text-sm">Loading analysis…</span>
+        </div>
+      )}
+
+      {analysis && !analysisLoading && (
         <>
-          {analysisLoading && (
-            <div className="flex items-center justify-center py-16 text-text-muted gap-3">
-              <Loader2 size={20} className="animate-spin" />
-              <span>Loading analysis for <strong>{activeCategory}</strong>…</span>
-            </div>
-          )}
+          {/* Sub-tabs */}
+          <div className="flex gap-1 p-1 bg-bg-dark rounded-xl border border-bg-border">
+            {TABS.map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                onClick={() => setActiveTab(key)}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-all
+                  ${activeTab === key
+                    ? 'bg-accent-blue/10 text-accent-blue border border-accent-blue/20'
+                    : 'text-text-muted hover:text-text-secondary'
+                  }`}
+              >
+                <Icon size={13} />
+                {label}
+              </button>
+            ))}
+          </div>
 
-          {analysis?.status === 'ready' && (
-            <div className="space-y-5">
-              {/* Meta bar */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="badge bg-teal-500/10 text-accent-teal border border-teal-500/20">
-                    {analysis.paper_count} papers analysed
-                  </span>
-                  <span className="text-xs text-text-muted">
-                    Last refreshed: {analysis.last_refreshed
-                      ? new Date(analysis.last_refreshed).toLocaleDateString()
-                      : 'N/A'}
-                  </span>
-                </div>
-                <button
-                  onClick={() => {
-                    startMutation.mutate({ topic: activeCategory, category: activeCategory, maxPapers })
-                  }}
-                  className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-primary transition-colors"
-                >
-                  <RefreshCw size={12} /> Refresh
-                </button>
-              </div>
-
-              {/* Sections grid */}
-              <div className="grid grid-cols-1 gap-5">
-                <SectionCard icon={BookOpen} title="History" color="text-accent-blue bg-blue-500/5">
-                  <EraTimeline history={analysis.history} />
-                </SectionCard>
-
-                <SectionCard icon={TrendingUp} title="Evolution" color="text-accent-teal bg-teal-500/5">
-                  <EvolutionPhases evolution={analysis.evolution} />
-                </SectionCard>
-
-                <SectionCard icon={Zap} title="Current SOTA" color="text-yellow-400 bg-yellow-500/5">
-                  <SOTAPanel sota={analysis.sota} />
-                </SectionCard>
-
-                <SectionCard icon={Compass} title="Next Steps & Open Problems" color="text-accent-red bg-red-500/5">
-                  <NextStepsPanel nextSteps={analysis.next_steps} />
-                </SectionCard>
-
-                <SectionCard icon={Star} title="Landmark Papers" color="text-purple-400 bg-purple-500/5">
-                  <KeyPapersPanel papers={analysis.key_papers} />
-                </SectionCard>
-              </div>
-            </div>
-          )}
-
-          {analysis?.status === 'analysing' && (
-            <div className="card p-8 text-center space-y-3">
-              <Loader2 size={32} className="animate-spin mx-auto text-accent-blue" />
-              <p className="text-text-secondary">
-                Analysis in progress for <strong>{activeCategory}</strong>…
-              </p>
-              <p className="text-text-muted text-sm">
-                This page will update automatically when ready.
-              </p>
-            </div>
-          )}
-
-          {!analysis && !analysisLoading && (
-            <div className="card p-8 text-center text-text-muted">
-              <p>No analysis available yet for <strong>{activeCategory}</strong>.</p>
-              <p className="text-sm mt-1">Click Analyse to start.</p>
-            </div>
-          )}
+          <div>
+            {activeTab === 'history'   && <SectionCard icon={BookOpen} title="Historical Evolution" color="text-accent-blue bg-blue-500/5"><EraTimeline history={analysis.history} /></SectionCard>}
+            {activeTab === 'evolution' && <SectionCard icon={TrendingUp} title="Phase Transitions" color="text-accent-purple bg-purple-500/5"><EvolutionPhases evolution={analysis.evolution} /></SectionCard>}
+            {activeTab === 'sota'      && <SectionCard icon={Zap} title="State of the Art" color="text-accent-teal bg-teal-500/5"><SOTAPanel sota={analysis.sota} /></SectionCard>}
+            {activeTab === 'next'      && <SectionCard icon={Compass} title="Next Steps & Open Problems" color="text-accent-orange bg-orange-500/5"><NextStepsPanel nextSteps={analysis.next_steps} /></SectionCard>}
+            {activeTab === 'papers'    && <SectionCard icon={Star} title="Landmark Papers" color="text-accent-yellow bg-yellow-500/5"><KeyPapersPanel papers={analysis.key_papers} /></SectionCard>}
+          </div>
         </>
       )}
+    </div>
+  )
+}
+
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
+
+export default function FieldIntelligence() {
+  const [tab, setTab] = useState('search')
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6 p-6">
+      <div>
+        <h1 className="font-display font-bold text-2xl text-text-primary">Field Intelligence</h1>
+        <p className="text-text-secondary text-sm mt-1">
+          Search arXiv in real-time and queue papers, or synthesize a full field intelligence report.
+        </p>
+      </div>
+
+      {/* Tab switcher */}
+      <div className="flex gap-1 p-1 bg-bg-dark rounded-xl border border-bg-border w-fit">
+        <button
+          onClick={() => setTab('search')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all
+            ${tab === 'search'
+              ? 'bg-accent-blue text-white shadow-lg shadow-blue-500/20'
+              : 'text-text-muted hover:text-text-secondary'
+            }`}
+        >
+          <Search size={14} />
+          arXiv Search
+        </button>
+        <button
+          onClick={() => setTab('analysis')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all
+            ${tab === 'analysis'
+              ? 'bg-accent-blue text-white shadow-lg shadow-blue-500/20'
+              : 'text-text-muted hover:text-text-secondary'
+            }`}
+        >
+          <Zap size={14} />
+          Field Analysis
+        </button>
+      </div>
+
+      {tab === 'search'   && <ArxivSearchTab />}
+      {tab === 'analysis' && <FieldAnalysisTab />}
     </div>
   )
 }

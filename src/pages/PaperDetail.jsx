@@ -13,11 +13,11 @@ import VideoPlayer from '../components/video/VideoPlayer'
 import WebContextPanel from '../components/paper/WebContextPanel'
 
 const TABS = [
-  { key: 'overview', label: 'Overview',    icon: FileText  },
-  { key: 'video',    label: 'Video',       icon: Play      },
-  { key: 'script',   label: 'Script',      icon: Scroll    },
-  { key: 'graph',    label: 'Citations',   icon: Network   },
-  { key: 'web',      label: 'Web Context', icon: Globe     },
+  { key: 'overview', label: 'Overview',  icon: FileText  },
+  { key: 'video',    label: 'Video',     icon: Play      },
+  { key: 'script',   label: 'Script',    icon: Scroll    },
+  { key: 'graph',    label: 'Citations', icon: Network   },
+  { key: 'web',      label: 'Web',       icon: Globe     },
 ]
 
 export default function PaperDetail() {
@@ -44,18 +44,18 @@ export default function PaperDetail() {
   return (
     <div className="flex flex-col h-full">
       {/* Sticky header */}
-      <div className="border-b border-bg-border bg-bg-dark/80 backdrop-blur-sm px-8 py-4">
-        <Link to="/" className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-primary transition-colors mb-3 w-fit">
+      <div className="border-b border-bg-border bg-bg-dark/80 backdrop-blur-sm px-4 md:px-8 py-3 md:py-4">
+        <Link to="/papers" className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-primary transition-colors mb-2 w-fit">
           <ArrowLeft size={12} />
           Back
         </Link>
-        <div className="flex items-start gap-4">
+        <div className="flex items-start gap-3">
           <div className="flex-1 min-w-0">
-            <h1 className="font-display font-bold text-lg text-text-primary leading-snug">
+            <h1 className="font-display font-bold text-base md:text-lg text-text-primary leading-snug">
               {paper.title}
             </h1>
-            <div className="flex items-center flex-wrap gap-x-4 gap-y-1 mt-2">
-              {paper.authors?.slice(0, 4).map((a, i) => (
+            <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-1.5">
+              {paper.authors?.slice(0, 3).map((a, i) => (
                 <span key={i} className="text-xs text-text-muted flex items-center gap-1">
                   <Users size={9} />
                   {a}
@@ -68,7 +68,7 @@ export default function PaperDetail() {
                 </span>
               )}
               {paper.venue && (
-                <span className="text-xs text-text-dim flex items-center gap-1">
+                <span className="hidden sm:flex text-xs text-text-dim items-center gap-1">
                   <BookOpen size={9} />
                   {paper.venue}
                 </span>
@@ -86,7 +86,7 @@ export default function PaperDetail() {
               )}
             </div>
           </div>
-          <span className={`badge border shrink-0 ${
+          <span className={`badge border shrink-0 text-xs ${
             paper.status === 'done'   ? 'bg-teal-500/10   text-accent-teal   border-teal-500/20' :
             paper.status === 'failed' ? 'bg-red-500/10    text-accent-red    border-red-500/20'  :
                                         'bg-blue-500/10   text-accent-blue   border-blue-500/20'
@@ -95,10 +95,9 @@ export default function PaperDetail() {
           </span>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-0.5 mt-4 -mb-px">
+        {/* Tabs — horizontally scrollable on mobile */}
+        <div className="flex gap-0.5 mt-3 -mb-px overflow-x-auto scrollbar-none">
           {TABS.map(({ key, label, icon: Icon }) => {
-            // Disable tabs that need data
             const disabled = (key === 'video' && !video?.output_path) ||
                              (key === 'script' && !paper.script)
             return (
@@ -106,7 +105,7 @@ export default function PaperDetail() {
                 key={key}
                 disabled={disabled}
                 onClick={() => setTab(key)}
-                className={`flex items-center gap-1.5 px-4 py-2 text-xs font-display font-medium border-b-2 transition-all
+                className={`flex items-center gap-1.5 px-3 md:px-4 py-2 text-xs font-display font-medium border-b-2 transition-all whitespace-nowrap shrink-0
                   ${tab === key
                     ? 'border-accent-blue text-accent-blue'
                     : disabled
@@ -123,7 +122,7 @@ export default function PaperDetail() {
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-y-auto p-8">
+      <div className="flex-1 overflow-y-auto p-4 md:p-8">
         <AnimatePresence mode="wait">
           <motion.div
             key={tab}
@@ -133,7 +132,7 @@ export default function PaperDetail() {
             transition={{ duration: 0.15 }}
           >
             {tab === 'overview' && (
-              <div className="space-y-6 max-w-3xl">
+              <div className="space-y-5 max-w-3xl">
                 {paper.abstract && (
                   <div className="space-y-2">
                     <p className="section-label">Abstract</p>
@@ -142,100 +141,46 @@ export default function PaperDetail() {
                     </p>
                   </div>
                 )}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="card p-4 text-center">
-                    <p className="text-2xl font-display font-bold text-text-primary">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="card p-3 md:p-4 text-center">
+                    <p className="text-xl md:text-2xl font-display font-bold text-text-primary">
                       {paper.sections_count || 0}
                     </p>
                     <p className="text-xs text-text-muted mt-1">Sections</p>
                   </div>
-                  <div className="card p-4 text-center">
-                    <p className="text-2xl font-display font-bold text-text-primary">
+                  <div className="card p-3 md:p-4 text-center">
+                    <p className="text-xl md:text-2xl font-display font-bold text-text-primary">
                       {paper.references_count || 0}
                     </p>
                     <p className="text-xs text-text-muted mt-1">References</p>
                   </div>
-                  <div className="card p-4 text-center">
-                    <p className={`text-2xl font-display font-bold ${
+                  <div className="card p-3 md:p-4 text-center">
+                    <p className={`text-xl md:text-2xl font-display font-bold ${
                       paper.script?.fact_check_passed ? 'text-accent-teal' : 'text-text-dim'
                     }`}>
-                      {paper.script?.fact_check_passed ? '✓' : '—'}
+                      {paper.script?.fact_check_passed ? '✓' : '–'}
                     </p>
-                    <p className="text-xs text-text-muted mt-1">Fact-checked</p>
+                    <p className="text-xs text-text-muted mt-1">Fact-check</p>
                   </div>
                 </div>
-                {paper.script && (
-                  <div className="card p-4">
-                    <p className="section-label mb-2">Script</p>
-                    <p className="text-xs text-text-secondary">
-                      Generated with <span className="font-mono text-accent-blue">{paper.script.model_used}</span> ·
-                      Prompt v{paper.script.prompt_version} ·
-                      Created {new Date(paper.script.created_at).toLocaleDateString()}
-                    </p>
-                    <button
-                      onClick={() => setTab('script')}
-                      className="btn-secondary text-xs mt-3"
-                    >
-                      View full script →
-                    </button>
-                  </div>
-                )}
               </div>
             )}
 
-            {tab === 'video' && (
-              <div className="max-w-3xl space-y-4">
-                <VideoPlayer
-                  videoPath={video?.output_path}
-                  jobId={video?.id}
-                  duration={video?.duration_seconds}
-                />
-                {video?.duration_seconds && (
-                  <p className="text-xs text-text-muted font-mono text-center">
-                    {Math.floor(video.duration_seconds / 60)}m {Math.floor(video.duration_seconds % 60)}s ·
-                    {' '}{paper.video?.slides_generated} slides
-                  </p>
-                )}
+            {tab === 'video' && video?.output_path && (
+              <div className="max-w-3xl">
+                <VideoPlayer videoPath={video.output_path} jobId={video.job_id} duration={video.duration} />
               </div>
             )}
 
-            {tab === 'script' && (
+            {tab === 'script' && script && (
               <div className="max-w-3xl">
                 <ScriptViewer script={script} />
               </div>
             )}
 
             {tab === 'graph' && (
-              <div className="space-y-4">
-                <p className="section-label">Citation & Similarity Graph</p>
-                {lineage ? (
-                  <CitationGraph
-                    lineage={lineage}
-                    focalPaperId={id}
-                    focalTitle={paper.title}
-                    height={560}
-                  />
-                ) : (
-                  <div className="card p-12 text-center text-text-muted text-sm animate-pulse">
-                    Loading graph…
-                  </div>
-                )}
-                {lineage && (
-                  <div className="grid grid-cols-3 gap-4 text-center">
-                    <div className="card p-3">
-                      <p className="text-xl font-display font-bold text-accent-teal">{lineage.ancestors?.length || 0}</p>
-                      <p className="text-xs text-text-muted">Ancestors</p>
-                    </div>
-                    <div className="card p-3">
-                      <p className="text-xl font-display font-bold text-accent-orange">{lineage.descendants?.length || 0}</p>
-                      <p className="text-xs text-text-muted">Descendants</p>
-                    </div>
-                    <div className="card p-3">
-                      <p className="text-xl font-display font-bold text-accent-purple">{lineage.similar?.length || 0}</p>
-                      <p className="text-xs text-text-muted">Similar</p>
-                    </div>
-                  </div>
-                )}
+              <div className="h-96 md:h-[600px]">
+                <CitationGraph data={lineage} paperId={id} />
               </div>
             )}
 

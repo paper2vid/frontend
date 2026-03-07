@@ -7,17 +7,17 @@ import { useAppStore } from '../store'
 import PipelineTracker from '../components/pipeline/PipelineTracker'
 
 const EXAMPLES = [
-  { label: 'Attention Is All You Need',  value: '1706.03762' },
-  { label: 'BERT',                        value: '1810.04805' },
-  { label: 'GPT-3',                       value: '2005.14165' },
-  { label: 'LoRA',                        value: '2106.09685' },
-  { label: 'Diffusion Models',            value: '2006.11239' },
+  { label: 'Attention Is All You Need', value: '1706.03762' },
+  { label: 'BERT',                       value: '1810.04805' },
+  { label: 'GPT-3',                      value: '2005.14165' },
+  { label: 'LoRA',                       value: '2106.09685' },
+  { label: 'Diffusion Models',           value: '2006.11239' },
 ]
 
 export default function IngestPage() {
-  const [mode,    setMode]    = useState('arxiv')  // arxiv | url | file
-  const [input,   setInput]   = useState('')
-  const [loading, setLoading] = useState(false)
+  const [mode,      setMode]      = useState('arxiv')
+  const [input,     setInput]     = useState('')
+  const [loading,   setLoading]   = useState(false)
   const [fileQueue, setFileQueue] = useState([])
   const fileRef = useRef(null)
 
@@ -41,67 +41,66 @@ export default function IngestPage() {
   }
 
   const submitFiles = async () => {
-  if (!fileQueue.length) return
-  setLoading(true)
-  try {
-    const form = new FormData()
-    fileQueue.forEach(({ file }) => form.append('files', file))
+    if (!fileQueue.length) return
+    setLoading(true)
+    try {
+      const form = new FormData()
+      fileQueue.forEach(({ file }) => form.append('files', file))
 
-    const data = await ingestFile(form)
-    const results = data.results ?? [data]  // handle both old single and new multi response
+      const data = await ingestFile(form)
+      const results = data.results ?? [data]
 
-    results.forEach(r => {
-      if (r.task_id) addJob(r.task_id, { source: r.filename, status: 'queued' })
-    })
+      results.forEach(r => {
+        if (r.task_id) addJob(r.task_id, { source: r.filename, status: 'queued' })
+      })
 
-    const errors = results.filter(r => r.status === 'error')
-    const queued = results.filter(r => r.status === 'queued')
-    if (queued.length) toast.success(`${queued.length} paper(s) queued!`)
-    if (errors.length) toast.error(`Failed: ${errors.map(e => e.filename).join(', ')}`)
+      const errors = results.filter(r => r.status === 'error')
+      const queued = results.filter(r => r.status === 'queued')
+      if (queued.length) toast.success(`${queued.length} paper(s) queued!`)
+      if (errors.length) toast.error(`Failed: ${errors.map(e => e.filename).join(', ')}`)
 
-    setFileQueue([])
-  } catch (e) {
-    toast.error(String(e))
-  } finally {
-    setLoading(false)
+      setFileQueue([])
+    } catch (e) {
+      toast.error(String(e))
+    } finally {
+      setLoading(false)
+    }
   }
-}
 
   return (
-    <div className="p-8 max-w-2xl mx-auto space-y-8">
+    <div className="p-4 md:p-8 max-w-2xl mx-auto space-y-6 md:space-y-8">
       <div>
-        <h1 className="font-display font-bold text-2xl text-text-primary">Add Paper</h1>
+        <h1 className="font-display font-bold text-xl md:text-2xl text-text-primary">Add Paper</h1>
         <p className="text-text-muted text-sm mt-1">Submit a paper to generate a narrated video.</p>
       </div>
 
       {/* Mode selector */}
       <div className="flex gap-1 p-1 bg-bg-dark rounded-xl border border-bg-border">
         {[
-          { key: 'arxiv', label: 'arXiv ID',    icon: Hash   },
-          { key: 'url',   label: 'URL',          icon: Link2  },
-          { key: 'file',  label: 'Upload File',  icon: Upload },
+          { key: 'arxiv', label: 'arXiv ID',   icon: Hash   },
+          { key: 'url',   label: 'URL',         icon: Link2  },
+          { key: 'file',  label: 'Upload',      icon: Upload },
         ].map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => setMode(key)}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-display font-medium transition-all
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs md:text-sm font-display font-medium transition-all
               ${mode === key
                 ? 'bg-accent-blue text-white shadow-lg shadow-blue-500/20'
                 : 'text-text-muted hover:text-text-secondary'
               }`}
           >
             <Icon size={13} />
-            {label}
+            <span>{label}</span>
           </button>
         ))}
       </div>
 
       {/* Input area */}
-      {/* Input area */}
       <div className="space-y-3">
         {mode !== 'file' ? (
           <>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <input
                 value={input}
                 onChange={e => setInput(e.target.value)}
@@ -112,7 +111,7 @@ export default function IngestPage() {
               <button
                 onClick={submit}
                 disabled={loading}
-                className="btn-primary flex items-center gap-2 px-5"
+                className="btn-primary flex items-center justify-center gap-2 sm:px-5"
               >
                 {loading
                   ? <><Loader2 size={14} className="animate-spin" /> Queuing...</>
@@ -127,7 +126,7 @@ export default function IngestPage() {
                   <button
                     key={ex.value}
                     onClick={() => setInput(ex.value)}
-                    className="px-3 py-1 rounded-lg text-xs font-mono bg-bg-dark border border-bg-border text-text-muted hover:text-text-primary hover:border-accent-blue/40 transition-colors"
+                    className="px-2.5 py-1 rounded-lg text-xs font-mono bg-bg-dark border border-bg-border text-text-muted hover:text-text-primary hover:border-accent-blue/40 transition-colors"
                   >
                     {ex.label}
                   </button>
@@ -145,14 +144,14 @@ export default function IngestPage() {
                 const dropped = Array.from(e.dataTransfer.files)
                 setFileQueue(prev => [...prev, ...dropped.map(f => ({ file: f }))])
               }}
-              className="card border-dashed border-bg-border hover:border-accent-blue/40 p-12 flex flex-col items-center gap-4 cursor-pointer transition-colors hover:bg-bg-hover"
+              className="card border-dashed border-bg-border hover:border-accent-blue/40 p-8 md:p-12 flex flex-col items-center gap-3 cursor-pointer transition-colors hover:bg-bg-hover"
             >
-              <div className="w-12 h-12 rounded-xl bg-accent-blue/10 flex items-center justify-center">
-                <Upload size={20} className="text-accent-blue" />
+              <div className="w-11 h-11 rounded-xl bg-accent-blue/10 flex items-center justify-center">
+                <Upload size={18} className="text-accent-blue" />
               </div>
               <div className="text-center">
-                <p className="font-display font-semibold text-text-primary">Drop files or click to browse</p>
-                <p className="text-text-muted text-sm mt-1">PDF, HTML, or LaTeX — select multiple</p>
+                <p className="font-display font-semibold text-text-primary text-sm">Drop files or tap to browse</p>
+                <p className="text-text-muted text-xs mt-1">PDF, HTML, or LaTeX — select multiple</p>
               </div>
               <input
                 ref={fileRef}
@@ -171,15 +170,15 @@ export default function IngestPage() {
             {fileQueue.length > 0 && (
               <div className="space-y-2">
                 {fileQueue.map(({ file }, i) => (
-                  <div key={i} className="flex items-center justify-between px-4 py-2.5 rounded-lg bg-bg-dark border border-bg-border">
-                    <div className="flex items-center gap-2.5">
-                      <FileText size={14} className="text-accent-blue shrink-0" />
-                      <span className="text-sm text-text-primary truncate max-w-xs">{file.name}</span>
-                      <span className="text-xs text-text-muted">({(file.size / 1024).toFixed(0)} KB)</span>
+                  <div key={i} className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-bg-dark border border-bg-border">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <FileText size={13} className="text-accent-blue shrink-0" />
+                      <span className="text-sm text-text-primary truncate">{file.name}</span>
+                      <span className="text-xs text-text-muted shrink-0">({(file.size / 1024).toFixed(0)} KB)</span>
                     </div>
                     <button
                       onClick={() => setFileQueue(prev => prev.filter((_, j) => j !== i))}
-                      className="text-text-muted hover:text-red-400 text-xs ml-3"
+                      className="text-text-muted hover:text-red-400 text-xs ml-3 shrink-0"
                     >✕</button>
                   </div>
                 ))}
@@ -220,18 +219,18 @@ export default function IngestPage() {
       </AnimatePresence>
 
       {/* Info card */}
-      <div className="card p-5 space-y-3">
+      <div className="card p-4 md:p-5 space-y-3">
         <p className="section-label">Pipeline stages</p>
         {[
-          ['Parse',     'PDF / HTML / LaTeX → structured JSON'],
-          ['Embed',     'SPECTER2 → Qdrant semantic index'],
-          ['Graph',     'Neo4j citation + similarity edges'],
-          ['Web',       'Brave/DDG + YouTube + PWC enrichment'],
-          ['Script',    'Claude 3-pass: decompose → narrative → fact-check'],
-          ['Narrate',   'ElevenLabs TTS per segment'],
-          ['Assemble',  'Pillow slides + FFmpeg MP4'],
+          ['Parse',    'PDF / HTML / LaTeX → structured JSON'],
+          ['Embed',    'SPECTER2 → Qdrant semantic index'],
+          ['Graph',    'Neo4j citation + similarity edges'],
+          ['Web',      'Brave/DDG + YouTube + PWC enrichment'],
+          ['Script',   'Claude 3-pass: decompose → narrative → fact-check'],
+          ['Narrate',  'ElevenLabs TTS per segment'],
+          ['Assemble', 'Pillow slides + FFmpeg MP4'],
         ].map(([stage, desc]) => (
-          <div key={stage} className="flex gap-3 text-sm">
+          <div key={stage} className="flex gap-3 text-xs md:text-sm">
             <span className="font-mono text-accent-blue w-16 shrink-0">{stage}</span>
             <span className="text-text-muted">{desc}</span>
           </div>

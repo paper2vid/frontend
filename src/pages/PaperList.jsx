@@ -20,34 +20,34 @@ export default function PaperList() {
   )
 
   return (
-    <div className="p-8 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-4 md:p-8 space-y-5 md:space-y-6">
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="font-display font-bold text-2xl text-text-primary">All Papers</h1>
-          <p className="text-text-muted text-sm mt-1">{papers.length} papers loaded</p>
+          <h1 className="font-display font-bold text-xl md:text-2xl text-text-primary">All Papers</h1>
+          <p className="text-text-muted text-xs md:text-sm mt-0.5">{papers.length} papers loaded</p>
         </div>
-        <Link to="/ingest" className="btn-primary flex items-center gap-2 text-sm">
+        <Link to="/ingest" className="btn-primary flex items-center gap-2 text-sm shrink-0">
           + Add Paper
         </Link>
       </div>
 
       {/* Filters */}
-      <div className="flex gap-3">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
           <input
             value={q}
             onChange={e => { setQ(e.target.value); setOffset(0) }}
             placeholder="Search titles, abstracts…"
-            className="input pl-8 w-full text-sm"
+            className="input pl-8 text-sm"
           />
         </div>
-        <div className="relative">
+        <div className="relative sm:w-44">
           <Filter size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
           <select
             value={status}
             onChange={e => { setStatus(e.target.value); setOffset(0) }}
-            className="input pl-8 pr-4 text-sm appearance-none"
+            className="input pl-8 pr-4 text-sm appearance-none w-full"
           >
             <option value="">All statuses</option>
             {STATUSES.filter(Boolean).map(s => (
@@ -68,7 +68,7 @@ export default function PaperList() {
           ))}
         </div>
       ) : papers.length === 0 ? (
-        <div className="card p-16 text-center space-y-3">
+        <div className="card p-10 md:p-16 text-center space-y-3">
           <FileText size={36} className="text-text-dim mx-auto" />
           <p className="font-display font-semibold text-text-secondary">No papers found</p>
           <p className="text-text-muted text-sm">Try adjusting your filters or add a new paper.</p>

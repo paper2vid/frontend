@@ -10,13 +10,13 @@ function StatCard({ label, value, icon: Icon, color, to }) {
     <Link to={to}>
       <motion.div
         whileHover={{ y: -2 }}
-        className="card-hover p-5 flex items-center gap-4"
+        className="card-hover p-4 flex items-center gap-3"
       >
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${color}`}>
-          <Icon size={18} className="text-white" />
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${color}`}>
+          <Icon size={16} className="text-white" />
         </div>
         <div>
-          <p className="text-2xl font-display font-bold text-text-primary">{value}</p>
+          <p className="text-xl font-display font-bold text-text-primary">{value}</p>
           <p className="text-xs text-text-muted mt-0.5">{label}</p>
         </div>
       </motion.div>
@@ -35,26 +35,26 @@ export default function Dashboard() {
   const recent  = papers.slice(0, 6)
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-4 md:p-8 space-y-6 md:space-y-8">
       {/* Hero */}
-      <div className="relative overflow-hidden rounded-2xl bg-bg-card border border-bg-border p-8">
+      <div className="relative overflow-hidden rounded-2xl bg-bg-card border border-bg-border p-5 md:p-8">
         <div className="absolute inset-0 bg-hero-gradient pointer-events-none" />
         <div className="absolute inset-0 bg-grid-pattern bg-grid opacity-100 pointer-events-none" />
         <div className="relative">
-          <h1 className="font-display font-bold text-3xl text-text-primary">
+          <h1 className="font-display font-bold text-2xl md:text-3xl text-text-primary">
             Paper<span className="text-accent-blue">2</span>Video
           </h1>
-          <p className="text-text-secondary mt-2 max-w-lg font-body">
-            Convert academic papers into narrated YouTube videos with citation graphs,
+          <p className="text-text-secondary mt-2 max-w-lg font-body text-sm md:text-base">
+            Convert academic papers into narrated videos with citation graphs,
             community context, and AI-generated story arcs.
           </p>
-          <div className="flex gap-3 mt-6">
-            <Link to="/ingest" className="btn-primary flex items-center gap-2">
-              <Plus size={15} />
+          <div className="flex flex-wrap gap-3 mt-5">
+            <Link to="/ingest" className="btn-primary flex items-center gap-2 text-sm">
+              <Plus size={14} />
               Add Paper
             </Link>
-            <Link to="/graph" className="btn-secondary flex items-center gap-2">
-              <Network size={15} />
+            <Link to="/graph" className="btn-secondary flex items-center gap-2 text-sm">
+              <Network size={14} />
               Explore Graph
             </Link>
           </div>
@@ -62,10 +62,10 @@ export default function Dashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
         <StatCard label="Total Papers"    value={papers.length} icon={FileText}   color="bg-accent-blue"   to="/" />
         <StatCard label="Videos Ready"    value={videos.length} icon={Film}       color="bg-accent-teal"   to="/videos" />
-        <StatCard label="Processing"      value={active}        icon={TrendingUp} color="bg-accent-orange" to="/" />
+        <StatCard label="Processing"      value={active}        icon={TrendingUp} color="bg-accent-orange" to="/" className="col-span-2 md:col-span-1" />
       </div>
 
       {/* Recent papers */}
@@ -77,7 +77,7 @@ export default function Dashboard() {
           </Link>
         </div>
         {recent.length === 0 ? (
-          <div className="card p-12 text-center space-y-4">
+          <div className="card p-8 md:p-12 text-center space-y-4">
             <FileText size={32} className="text-text-dim mx-auto" />
             <div>
               <p className="text-text-secondary font-display font-medium">No papers yet</p>

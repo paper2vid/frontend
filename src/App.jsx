@@ -7,6 +7,7 @@ import VideoLibrary from './pages/VideoLibrary'
 import GraphExplorer from './pages/GraphExplorer'
 import IngestPage from './pages/IngestPage'
 import FieldIntelligence from './pages/FieldIntelligence'
+import ChatPage from './pages/ChatPage'
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
         <Route path="/videos"      element={<VideoLibrary />} />
         <Route path="/graph"       element={<GraphExplorer />} />
         <Route path="/fields"      element={<FieldIntelligence />} />
+        <Route path="/chat"        element={<ChatPage />} />
       </Routes>
     </Layout>
   )
