@@ -1,0 +1,17 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: paper2video-frontend:latest
+    container_name: paper2video_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    networks:
+      - r2v_net
+
+networks:
+  r2v_net:
+    external: true
+    name: r2v_net
