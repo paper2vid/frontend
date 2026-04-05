@@ -8,10 +8,7 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
-    networks:
-      - r2v_net
-
-networks:
-  r2v_net:
-    external: true
-    name: r2v_net
+    extra_hosts:
+      - "host-gateway:host-gateway"
+    environment:
+      - VITE_API_URL=http://host-gateway:8000
